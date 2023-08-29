@@ -1,5 +1,5 @@
 {
-  "name": "nettrine/orm",
+  "name": "involve-digital/orm",
   "description": "Doctrine ORM for Nette Framework",
   "keywords": ["nette", "doctrine", "orm", "database"],
   "type": "library",
