@@ -12,6 +12,7 @@ use Nette\DI\Definitions\Statement;
 use Nette\DI\Helpers;
 use Nette\Schema\Expect;
 use Nette\Schema\Schema;
+use Nettrine\DBAL\DI\DbalExtension;
 use Nettrine\ORM\DI\Definitions\SmartStatement;
 use Nettrine\ORM\EntityManagerDecorator;
 use Nettrine\ORM\Exception\Logical\InvalidArgumentException;
@@ -27,6 +28,7 @@ final class OrmExtension extends AbstractExtension
 {
 
 	public const MAPPING_DRIVER_TAG = 'nettrine.orm.mapping.driver';
+	public const ENTITY_MANAGER_TAG = 'nettrine.orm.entityManagerDecorator';
 
 	public function getConfigSchema(): Schema
 	{
@@ -171,20 +173,26 @@ final class OrmExtension extends AbstractExtension
 			throw new InvalidStateException(sprintf('EntityManagerDecorator class "%s" not found', $entityManagerDecoratorClass));
 		}
 
-		// Entity Manager
-		$original = new Statement(DoctrineEntityManager::class . '::create', [
-			$builder->getDefinitionByType(Connection::class), // Nettrine/DBAL
-			$this->prefix('@configuration'),
-		]);
+		foreach ($builder->findByType(Connection::class) as $connectionDef) {
+			$connectionName = $connectionDef->getTag(DbalExtension::TAG_CONNECTION);
 
-		// Entity Manager Decorator
-		$decorator = $builder->addDefinition($this->prefix('entityManagerDecorator'))
-			->setFactory($entityManagerDecoratorClass, [$original]);
+			// Entity Manager
+			$original = new Statement(DoctrineEntityManager::class . '::create', [
+				$connectionDef, // Nettrine/DBAL
+				$this->prefix('@configuration'),
+			]);
 
-		if ($config->configuration->filters !== []) {
-			foreach ($config->configuration->filters as $filterName => $filter) {
-				if ($filter->enabled) {
-					$decorator->addSetup(new Statement('$service->getFilters()->enable(?)', [$filterName]));
+			// Entity Manager Decorator
+			$decorator = $builder->addDefinition($this->prefix($connectionName . '.entityManagerDecorator'))
+				->setFactory($entityManagerDecoratorClass, [$original])
+				->addTag(self::ENTITY_MANAGER_TAG, $connectionName)
+				->setAutowired($connectionName === 'default');
+
+			if ($config->configuration->filters !== []) {
+				foreach ($config->configuration->filters as $filterName => $filter) {
+					if ($filter->enabled) {
+						$decorator->addSetup(new Statement('$service->getFilters()->enable(?)', [$filterName]));
+					}
 				}
 			}
 		}
@@ -194,7 +202,7 @@ final class OrmExtension extends AbstractExtension
 			->setType(ManagerRegistry::class)
 			->setArguments([
 				$builder->getDefinitionByType(Connection::class),
-				$this->prefix('@entityManagerDecorator'),
+				$builder->getDefinitionByType($entityManagerDecoratorClass),
 			]);
 	}
 

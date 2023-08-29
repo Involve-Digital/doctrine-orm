@@ -16,14 +16,8 @@ class ManagerRegistry extends AbstractManagerRegistry
 	/** @var Container */
 	private $container;
 
-	public function __construct(Connection $connection, EntityManagerInterface $em, Container $container)
+	public function __construct(array $connections, array $managers, Container $container)
 	{
-		$defaultConnection = $container->findByType(get_class($connection))[0];
-		$defaultManager = $container->findByType(get_class($em))[0];
-
-		$connections = ['default' => $defaultConnection];
-		$managers = ['default' => $defaultManager];
-
 		parent::__construct('ORM', $connections, $managers, 'default', 'default', Proxy::class);
 		$this->container = $container;
 	}
